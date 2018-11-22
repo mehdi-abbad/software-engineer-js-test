@@ -1,70 +1,108 @@
-// NOTE: you can use CommonJS here, for instance:
-// var foo = require("npm-dependency");
-// var bar = require("./path/to/local/file_without_extension");
-// module.exports = someVariable;
+const _ = require('underscore');
+const mitt = require('mitt');
 
-// grab DOM elements inside index.html
+const Canvas = require('./canvas');
+const Loader = require('./loader');
 
-var fileSelector = document.getElementById( "fileSelector" );
-var imageContainer = document.getElementById( "imageContainer" );
-var debugContainer = document.getElementById( "debugContainer" );
-var generateButton = document.getElementById( "generateButton" );
+const ApplicationTemplate = _.template(`
+    <h1>Test application</h1>
+    <div id="fileLoader"></div>
+    <div id="canvasContainer" class="column left"></div>
+    <div class="column right">
+        <div id="debugContainer">
+            <!-- will hold debug messages -->
+        </div>
+    </div>
+    <div id="actions">
+        <button id="generateBtn" disabled>Generate</button>
+        <button id="importBtn" disabled>Import</button>
+    </div>
+`);
 
-// some functions to get you started !!
+class Application {
+    constructor() {
+        this.targetElement = null;
+        this.debugContainer = null;
+        this.canvasContainer = null;
+        this.emitter = mitt();
+        this.loader = new Loader(this.emitter);
+        this.canvas = null;
 
-function log( msg ) {
-    // show debug/state message on screen
-    debugContainer.innerHTML += "<p>" + msg + "</p>";
-}
+    }
 
-fileSelector.onchange = function( e ) {
-    // get all selected Files
-    var files = e.target.files;
-    var file;
-    for ( var i = 0; i < files.length; ++i ) {
-        file = files[ i ];
-        // check if file is valid Image (just a MIME check)
-        switch ( file.type ) {
-            case "image/jpeg":
-            case "image/png":
-            case "image/gif":
-                // read Image contents from file
-                var reader = new FileReader();
-                reader.onload = function( e ) {
-                    // create HTMLImageElement holding image data
-                    var img = new Image();
-                    img.src = reader.result;
+    onFileSelected(fileUri) {
+        if (!this.canvas) {
+            this.canvas = new Canvas(this.emitter);
+            this.canvas.renderTo(this.$('#canvasContainer'));
+        }
+        this.canvas.loadImage(fileUri);
+        this.canvas.loaderDescription = {
+            id:fileUri.substring(50,58), // let's pretend this is random and unique :p
+            uri:fileUri
+        };
+    }
 
-                    // remove existing images from ImageContainer
-                    while ( imageContainer.childNodes.length > 0 )
-                        imageContainer.removeChild( imageContainer.childNodes[ 0 ]);
+    generateDescription() {
+        this.log("====== Generated description ===========");
+        this.log("----------------------------------><8-");
+        this.log(JSON.stringify({
+            canvas: this.canvas.generateDescription(),
+            loader: {
+                uri: this.canvas.loaderDescription.uri.substr(0,30)+'...',
+                id : this.canvas.loaderDescription.id
+            }
+        }));
+        this.log("-8><----------------------------------");
+    }
 
-                    // add image to container
-                    imageContainer.appendChild( img );
-
-                    img.onload = function() {
-                        // grab some data from the image
-                        var imageData = {
-                            "width": img.naturalWidth,
-                            "height": img.naturalHeight
-                        };
-                        log( "Loaded Image w/dimensions " + imageData.width + " x " + imageData.height );
-                    }
-                    // do your magic here...
-                };
-                reader.readAsDataURL( file );
-                // process just one file.
-                return;
-
-
-            default:
-                log( "not a valid Image file :" + file.name );
+    importDescription() {
+        let jsonDescription = prompt('Past description here','JSON Description');
+        if (!jsonDescription) return;
+        try {
+            let desc = JSON.parse(jsonDescription);
+            if (desc.loader.id!==this.canvas.loaderDescription.id) {
+                this.log('Seems this description is entended for another image');   
+            } else {
+                this.canvas.loadDescription(desc.canvas);
+                this.log('Description loaded');
+            }
+        } catch (e){
+            this.log('Error importing description');
+            this.log(e);
         }
     }
-};
 
-generateButton.onclick = function( e ) {
-    log( "GENERATE BUTTON CLICKED!! Should this do something else?" );
-};
+    $(selector) {return this.targetElement.querySelector(selector);}
 
-log( "Test application ready" );
+    onCanvasLoadStatus(status) {
+        this.$('#generateBtn').disabled = !status;
+        this.$('#importBtn').disabled = !status;
+    }
+
+    renderTo(element) {
+        this.targetElement = element;
+        element.innerHTML = ApplicationTemplate();
+        this.debugContainer = element.querySelector('#debugContainer');
+        this.loader.renderTo(element.querySelector('#fileLoader'));
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        this.emitter.on('loader:file', ({fileUri}) => this.onFileSelected(fileUri));
+        this.emitter.on('canvas:loaded', (status) => this.onCanvasLoadStatus(status));
+        this.$('#generateBtn').addEventListener('click', e=> this.generateDescription());
+
+        this.$('#importBtn').addEventListener('click', e=> this.importDescription());
+    }
+
+    log(msg) {
+        let p = document.createElement('P');
+        p.innerText = msg;
+        this.debugContainer.appendChild(p);
+    }
+}
+
+const App = new Application();
+
+App.renderTo(document.body);
+App.log('Application is ready');

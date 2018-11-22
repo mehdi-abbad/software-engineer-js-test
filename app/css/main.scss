@@ -36,3 +36,39 @@ body {
     padding: 0;
   }
 }
+
+
+div.canvasContainer {
+    overflow: hidden;
+    $padding-zone-size : 30px;
+
+    * {
+        box-sizing: border-box;
+    }
+    padding: $padding-zone-size;
+    position: relative;
+    
+    &:after {
+        box-sizing: border-box;
+        content:'';
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border: $padding-zone-size solid rgba(40,50,60,0.8);
+        top: 0;
+        left: 0;
+    }
+
+    div.imageContainer {
+        position: relative;
+        border: 2px dashed rgba(10,0,0,0.5);
+        img {
+            position: absolute;
+        }
+    }
+
+    div.canvasControls {
+        position: absolute;
+        z-index: 10;
+    }
+}
